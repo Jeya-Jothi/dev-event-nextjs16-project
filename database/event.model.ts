@@ -106,8 +106,8 @@ const EventSchema = new Schema<IEvent>(
   }
 );
 
-// Helper function to generate URL-friendly slug
-function generateSlug(title: string): string {
+// Helper function to generate base URL-friendly slug
+function generateBaseSlug(title: string): string {
   return title
     .toLowerCase()
     .trim()
@@ -115,6 +115,30 @@ function generateSlug(title: string): string {
     .replace(/\s+/g, '-') // Replace spaces with hyphens
     .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
     .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
+
+// Helper function to generate unique slug by checking database
+async function generateUniqueSlug(
+  title: string,
+  currentDocId?: string
+): Promise<string> {
+  const baseSlug = generateBaseSlug(title);
+  let slug = baseSlug;
+  let counter = 1;
+
+  // Keep checking until we find a unique slug
+  while (true) {
+    const existingDoc = await Event.findOne({ slug }).lean();
+
+    // If no document exists with this slug, or it's the current document being updated
+    if (!existingDoc || existingDoc._id.toString() === currentDocId) {
+      return slug;
+    }
+
+    // Append counter and try again
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
 }
 
 // Helper function to normalize date to ISO format
@@ -155,14 +179,17 @@ function normalizeTime(timeString: string): string {
 
 /**
  * Pre-save hook to auto-generate slug from title and normalize date/time
- * - Generates URL-friendly slug only when title changes
+ * - Generates unique URL-friendly slug when title changes
  * - Validates and formats date to ISO 8601 standard
  * - Normalizes time to HH:MM 24-hour format
  */
-EventSchema.pre<IEvent>('save', function () {
-  // Generate slug only if title is modified
+EventSchema.pre<IEvent>('save', async function () {
+  // Generate unique slug only if title is modified
   if (this.isModified('title')) {
-    this.slug = generateSlug(this.title);
+    this.slug = await generateUniqueSlug(
+      this.title,
+      this._id?.toString()
+    );
   }
 
   // Validate and normalize date to ISO format
