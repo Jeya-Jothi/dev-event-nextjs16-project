@@ -1,20 +1,11 @@
 import mongoose from 'mongoose';
 
-// Define the MongoDB URI from environment variables
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    'Please define the MONGODB_URI environment variable inside .env.local'
-  );
-}
-
 /**
  * Global type augmentation for mongoose connection caching
- * This prevents TypeScript errors when accessing global.mongoose
+ * This prevents TypeScript errors when accessing global.mongooseCache
  */
 declare global {
-  var mongoose: {
+  var mongooseCache: {
     conn: mongoose.Connection | null;
     promise: Promise<mongoose.Connection> | null;
   };
@@ -25,15 +16,16 @@ declare global {
  * In development, Next.js hot reloads can create new connections on each reload
  * This cache persists across hot reloads to prevent connection exhaustion
  */
-let cached = global.mongoose;
+let cached = global.mongooseCache;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = global.mongooseCache = { conn: null, promise: null };
 }
 
 /**
  * Establishes and returns a cached MongoDB connection
  * @returns Promise that resolves to a Mongoose Connection instance
+ * @throws Error if MONGODB_URI environment variable is not defined
  */
 async function connectDB(): Promise<mongoose.Connection> {
   // Return existing connection if available
@@ -43,12 +35,21 @@ async function connectDB(): Promise<mongoose.Connection> {
 
   // Create new connection promise if one doesn't exist
   if (!cached.promise) {
+    // Validate MONGODB_URI at connection time, not at module import
+    const MONGODB_URI = process.env.MONGODB_URI;
+    
+    if (!MONGODB_URI) {
+      throw new Error(
+        'Please define the MONGODB_URI environment variable inside .env.local'
+      );
+    }
+
     const options = {
       bufferCommands: false, // Disable Mongoose buffering to fail fast on connection issues
     };
 
     cached.promise = mongoose
-      .connect(MONGODB_URI as string, options)
+      .connect(MONGODB_URI, options)
       .then((mongooseInstance) => {
         return mongooseInstance.connection;
       });

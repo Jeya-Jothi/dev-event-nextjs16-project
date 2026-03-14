@@ -143,17 +143,41 @@ async function generateUniqueSlug(
 
 // Helper function to normalize date to ISO format
 function normalizeDate(dateString: string): string {
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date format');
+  const trimmedDate = dateString.trim();
+  
+  // Match YYYY-MM-DD format explicitly
+  const isoDateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const match = trimmedDate.match(isoDateRegex);
+  
+  if (match) {
+    // Parse YYYY-MM-DD using UTC to prevent day-shifts
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    
+    // Validate month and day ranges
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      throw new Error('Invalid date values. Month must be 1-12 and day must be 1-31');
+    }
+    
+    // Use Date.UTC to create date in UTC, preventing timezone shifts
+    const date = new Date(Date.UTC(year, month - 1, day));
+    
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date');
+    }
+    
+    return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
   }
-  return date.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+  
+  // Reject non-YYYY-MM-DD formats
+  throw new Error('Invalid date format. Use YYYY-MM-DD format (e.g., 2024-03-14)');
 }
 
 // Helper function to normalize time format
 function normalizeTime(timeString: string): string {
   // Handle various time formats and convert to HH:MM (24-hour format)
-  const timeRegex = /(\d{1,2}):(\d{2})(\s*(AM|PM))?$/i;
+  const timeRegex = /^(\d{1,2}):(\d{2})(\s*(AM|PM))?$/i;
   const match = timeString.trim().match(timeRegex);
 
   if (!match) {
