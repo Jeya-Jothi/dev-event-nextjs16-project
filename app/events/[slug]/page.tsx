@@ -2,6 +2,7 @@ import BookEvent from "@/components/BookEvent";
 import EventCard from "@/components/EventCard";
 import { IEvent } from "@/database/event.model";
 import { getSimilarEventBySlug } from "@/lib/actions/event.actions";
+import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
@@ -57,24 +58,26 @@ const EventDetailsPage = async ({
 }: {
   params: Promise<{ slug: string }>;
 }) => {
+  "use cache";
+  cacheLife("hours");
   const { slug } = await params;
   const response = await fetch(`${BASE_URL}/api/events/${slug}`);
+  const { event } = await response.json();
+
   const {
-    event: {
-      description,
-      image,
-      overview,
-      date,
-      time,
-      location,
-      mode,
-      agenda,
-      venue,
-      tags,
-      audience,
-      organizer,
-    },
-  } = await response.json();
+    description,
+    image,
+    overview,
+    date,
+    time,
+    location,
+    mode,
+    agenda,
+    venue,
+    tags,
+    audience,
+    organizer,
+  } = event;
 
   if (!description) return notFound(); // Auto redirects to 404 page if event not found
 
@@ -141,12 +144,12 @@ const EventDetailsPage = async ({
               <p className="text-sm">Be the first to book your spot!</p>
             )}
 
-            <BookEvent />
+            <BookEvent eventId={event._id} slug={slug} />
           </div>
         </aside>
       </div>
 
-      <div className="mt-10 mb-5">
+      <div className="flex w-full flex-col gap-4 pt-20">
         <h2>Similar Events</h2>
         <div className="events">
           {similarEvents.length > 0 &&
